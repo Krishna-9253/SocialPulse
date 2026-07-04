@@ -1,5 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { Box, Heading, SimpleGrid, VStack, Button, HStack, Text, Spinner, useToast } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  SimpleGrid,
+  Spinner,
+  Text,
+  Textarea,
+  useToast,
+  VStack,
+} from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Line, Bar } from "react-chartjs-2";
@@ -14,12 +27,14 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { mergeAnalytics, normalizeXquikTweets } from "../utils/xquikAnalytics";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, BarElement, LineElement, Title, Tooltip, Legend);
 
 const Dashboard = () => {
   const [analytics, setAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [xquikPayload, setXquikPayload] = useState("");
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -95,6 +110,40 @@ const Dashboard = () => {
     navigate("/");
   };
 
+  const handleXquikImport = () => {
+    try {
+      const rows = normalizeXquikTweets(xquikPayload);
+      if (rows.length === 0) {
+        toast({
+          title: "No Xquik tweets found",
+          description: "Paste a tweet search response from GET /api/v1/x/tweets/search.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      setAnalytics((current) => mergeAnalytics(current, rows));
+      setXquikPayload("");
+      toast({
+        title: "Xquik data imported",
+        description: `${rows.length} daily data point${rows.length === 1 ? "" : "s"} added to the dashboard.`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Invalid Xquik JSON",
+        description: error.message,
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Box p={6} minH="100vh" display="flex" justifyContent="center" alignItems="center">
@@ -143,6 +192,27 @@ const Dashboard = () => {
             />
           </Box>
         </SimpleGrid>
+
+        <Box bg="white" p={6} rounded="xl" shadow="md">
+          <Heading size="md" mb={4}>
+            Xquik Tweet Search Import
+          </Heading>
+          <Text mb={3} color="gray.600">
+            Paste a Xquik `GET /api/v1/x/tweets/search` JSON response to add X/Twitter engagement to the charts.
+          </Text>
+          <FormControl>
+            <FormLabel>Xquik JSON</FormLabel>
+            <Textarea
+              value={xquikPayload}
+              onChange={(event) => setXquikPayload(event.target.value)}
+              placeholder='{"data":[{"created_at":"2026-07-04T10:00:00Z","public_metrics":{"like_count":12,"reply_count":3,"retweet_count":2,"quote_count":1}}]}'
+              minH="150px"
+            />
+          </FormControl>
+          <Button mt={4} colorScheme="blue" onClick={handleXquikImport}>
+            Import Xquik Data
+          </Button>
+        </Box>
       </VStack>
     </Box>
   );
